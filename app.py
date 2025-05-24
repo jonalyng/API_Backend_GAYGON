@@ -1,27 +1,32 @@
+# app.py
+
 from flask import Flask, request, jsonify
-from flask_cors import CORS
+import pandas as pd
+import joblib
 
 app = Flask(__name__)
-CORS(app)
 
-@app.route("/")
-def home():
-    return "Server is running."
+# Load model and metadata
+model = joblib.load("trained_data/student_pass_fail_model.pkl")
+feature_columns = joblib.load("trained_data/model_features.pkl")
+label_encoder = joblib.load("trained_data/pass_fail_encoder.pkl")
 
-@app.route("/chat", methods=["GET", "POST"])
-def chat():
-    if request.method == "GET":
-        return "Chat endpoint is up."
+@app.route('/predict', methods=['POST'])
+def predict():
+    data = request.json  # Expecting JSON input
 
-    data = request.get_json()
-    message = data.get("message", "").lower()
+    # Convert to DataFrame
+    df = pd.DataFrame([data])
 
-    if message == "hi":
-        reply = "Hello, pretty jo!"
-    else:
-        reply = "I don't understand."
+    # One-hot encode to match training format
+    df_encoded = pd.get_dummies(df)
+    df_encoded = df_encoded.reindex(columns=feature_columns, fill_value=0)
 
-    return jsonify({"reply": reply})
+    # Predict
+    prediction_encoded = model.predict(df_encoded)[0]
+    prediction_label = label_encoder.inverse_transform([prediction_encoded])[0]
 
-if __name__ == "__main__":
+    return jsonify({"prediction": prediction_label})
+
+if __name__ == '__main__':
     app.run(debug=True)
